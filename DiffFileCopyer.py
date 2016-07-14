@@ -18,6 +18,7 @@ class DiffFileCopyer:
 	gameSvnPath = serverPath + "\\gameres_svn"
 	targetPath = ''
 	ignorePathList =[
+	gameSvnPath + "\\script",	
 	gameSvnPath + "\\.svn",	
 	gameSvnPath + "\\gw\\rolevalue_setting\\rolevalue_log",
 	gameSvnPath + "\\itemexchange_setting\\rolevalue_log",
@@ -107,6 +108,7 @@ class DiffFileCopyer:
 				if match[0][0] == 'M' or match[0][0] == '?':
 					if match[0][2] in self.ignorePathList:
 						continue
+					print(match[0][2])
 					self.fileList.append(match[0][2])
 				else:
 					if 'ignore-on-commit' in match[0][2]:

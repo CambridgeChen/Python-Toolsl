@@ -18,11 +18,11 @@ class DiffFileCopyer:
 	gameSvnPath = serverPath + "\\gameres_svn"
 	targetPath = ''
 	ignorePathList =[
-	gameSvnPath + "\\script",	
-	gameSvnPath + "\\.svn",	
-	gameSvnPath + "\\gw\\rolevalue_setting\\rolevalue_log",
-	gameSvnPath + "\\itemexchange_setting\\rolevalue_log",
-	gameSvnPath + "\\rolevalueladder_setting\\rolevalue_log"
+		gameSvnPath + "\\script",	
+		gameSvnPath + "\\.svn",	
+		gameSvnPath + "\\gw\\rolevalue_setting\\rolevalue_log",
+		gameSvnPath + "\\itemexchange_setting\\rolevalue_log",
+		gameSvnPath + "\\rolevalueladder_setting\\rolevalue_log"
 	]
 
 	def traverse(self, path):

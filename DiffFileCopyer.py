@@ -7,6 +7,7 @@ import getopt
 import sys
 import shutil
 import math
+import json
 
 REG_EXP = r'(\S+)(\s+)(.+)'
 
@@ -17,33 +18,16 @@ class DiffFileCopyer:
 	serverPath = "D:\\MoneyServer"
 	gameSvnPath = serverPath + "\\gameres_svn"
 	targetPath = ''
-	ignorePathList =[
+	ignorePathList = [
 		gameSvnPath + "\\script",	
 		gameSvnPath + "\\.svn",	
 		gameSvnPath + "\\gw\\rolevalue_setting\\rolevalue_log",
 		gameSvnPath + "\\itemexchange_setting\\rolevalue_log",
 		gameSvnPath + "\\rolevalueladder_setting\\rolevalue_log"
 	]
+	# generate by 'ignorePathList'
+	ignorePathTree = {}
 
-	def traverse(self, path):
-		if not path:
-			return False
-		if not os.path.exists(path):
-			print("error path " + path)
-			return False
-		if os.path.isfile(path):
-			# currentTime = time.time() + 0.01
-			# speed = math.floor(self.fileCount / (currentTime - self.beginTime) * 100) / 100
-			# print("parse file " + str(self.fileCount) + " " + path + " with speed " + str(speed) + "/s.")
-			self.prosessFile(path)
-		if os.path.isdir(path) and not (path in self.ignorePathList):
-			# print("walk path " + path)
-			if not self.prosessFile(path):
-				fileNameList = os.listdir(path)
-				for fileName in fileNameList:
-					fileName = path + '/' + fileName
-					self.traverse(fileName)
-			return True
 
 	def pack(self, packDirectory, zipFilePath, zipFileName):
 		zipFileName = zipFileName + ".zip"
@@ -57,30 +41,16 @@ class DiffFileCopyer:
 			return
 
 		myZipFile = zipfile.ZipFile(zipFileName, "w", zipfile.ZIP_DEFLATED)
+		os.chdir(zipFilePath)
         
 		for dirpath, dirnames, files in os.walk(packDirectory):
 			for file in files:
 				relpath = os.path.relpath(os.path.join(dirpath, file), start = zipFilePath)
-				print(relpath)
+				print("pack", relpath)
 				myZipFile.write(relpath)
 
-		# logFileNameList = os.listdir(packDirectory)
-
-		# try:
-		# 	for logFileName in logFileNameList:
-		# 		print("logFileName", logFileName)
-		# 		info = os.path.join(packDirectory, logFileName)
-		# 		if os.path.isfile(info):
-		# 			myZipFile.write(info, logFileName)
-		# finally:
-		# 	myZipFile.close()
-        
-		# try:
-		# 	myZipFile = zipfile.ZipFile(zipFileName, "r", zipfile.ZIP_DEFLATED)
-
-		# 	errorFileName =  myZipFile.testzip()
-		# finally:
 		myZipFile.close()
+
 
 	def writeResult(self):
 		if not os.path.exists(self.targetPath):
@@ -96,6 +66,7 @@ class DiffFileCopyer:
 			elif os.path.isdir(file):
 				shutil.copytree(file, targetFile)
 
+
 	def prosessFile(self, fileName):
 		szRtn = os.popen("svn status " + fileName + "").read()
 		infoList = szRtn.split("\n")
@@ -106,21 +77,78 @@ class DiffFileCopyer:
 			match = parseRegExp.findall(line)
 			if match:
 				if match[0][0] == 'M' or match[0][0] == '?':
-					if match[0][2] in self.ignorePathList:
+					# if match[0][2] in self.ignorePathList:
+					if self.__isInIgnorePath(match[0][2]) == True:
 						continue
-					print(match[0][2])
+					print("add", match[0][2])
 					self.fileList.append(match[0][2])
 				else:
 					if 'ignore-on-commit' in match[0][2]:
 						return
+
+
 	def go(self):
 		todayStr = "gameres_svn_" + time.strftime('%Y_%m_%d_%H_%M_%S')
 		self.targetPath = self.serverPath + "\\patch\\" + todayStr
 		self.prosessFile(self.gameSvnPath)
 		self.writeResult()
 		self.pack(self.targetPath, self.serverPath + "\\patch\\", todayStr)
+	
+
+	def __isInIgnorePath(self, path):
+		if path == None:
+			return False
+
+		segmentList = path.split(os.path.sep)
+		segmentTree = self.ignorePathTree
+		for segment in segmentList:
+			if segmentTree.get(segment) == None:
+				break
+			segmentTree = segmentTree.get(segment)
+		
+		if len(segmentTree) == 0:
+			return True
+		else:
+			return False
+
+
+	def initFromConfig(self, jsonConfig):
+		if jsonConfig == None:
+			return
+
+		serverPath = jsonConfig['serverPath']
+		gameSvnPath = jsonConfig['gameSvnPath']
+		ignorePathList = jsonConfig['ignorePathList']
+
+		if serverPath != None:
+			self.serverPath = serverPath
+		if gameSvnPath != None:
+			self.gameSvnPath = os.path.join(self.serverPath, gameSvnPath)
+		if ignorePathList != None:
+			self.ignorePathList = [os.path.join(self.gameSvnPath, relPath) for relPath in ignorePathList]
+			for ignorePath in self.ignorePathList:
+				segmentList = ignorePath.split(os.path.sep)
+				segmentTree = self.ignorePathTree
+				for segment in segmentList:
+					if segmentTree.get(segment) == None:
+						segmentTree[segment] = {}
+					segmentTree = segmentTree[segment]
 
 
 if __name__ == '__main__':
+	argv = sys.argv
+	argCount = len(argv)
+	if argCount < 2:
+		print("Please select a json config!")
+		sys.exit("Please select a json config!")
+
+	if not os.path.exists(argv[1]):
+		print("File not found!")
+		sys.exit("File not found!")
+
+	with open(argv[1], 'r') as jsonConfigFile:
+		jsonConfig = json.load(jsonConfigFile)
+
 	diffFileCopyer = DiffFileCopyer()
+	diffFileCopyer.initFromConfig(jsonConfig)
 	diffFileCopyer.go()

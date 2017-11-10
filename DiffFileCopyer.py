@@ -27,6 +27,8 @@ class DiffFileCopyer:
 	]
 	# generate by 'ignorePathList'
 	ignorePathTree = {}
+	ignoreFileType = set()
+	isPack = True
 
 
 	def pack(self, packDirectory, zipFilePath, zipFileName):
@@ -50,6 +52,19 @@ class DiffFileCopyer:
 				myZipFile.write(relpath)
 
 		myZipFile.close()
+	
+
+	def __isIgnoreType(self, fileName):
+		fileType = os.path.splitext(fileName)
+		return fileType[1] in self.ignoreFileType
+	
+
+	def __copyFunction(self, src, dst, *, follow_symlinks=True):
+		if os.path.isdir(dst):
+			dst = os.path.join(dst, os.path.basename(src))
+		if not self.__isIgnoreType(src):
+			shutil.copy2(src, dst)
+		return dst
 
 
 	def writeResult(self):
@@ -64,11 +79,11 @@ class DiffFileCopyer:
 					os.makedirs(targetFilePath)
 				shutil.copyfile(file, targetFile)
 			elif os.path.isdir(file):
-				shutil.copytree(file, targetFile)
+				shutil.copytree(file, targetFile, False, None, self.__copyFunction)
 
 
-	def prosessFile(self, fileName):
-		szRtn = os.popen("svn status " + fileName + "").read()
+	def prosessFile(self, path):
+		szRtn = os.popen("svn status " + path + "").read()
 		infoList = szRtn.split("\n")
 		parseRegExp = re.compile(REG_EXP)
 		for line in infoList:
@@ -76,14 +91,16 @@ class DiffFileCopyer:
 				continue
 			match = parseRegExp.findall(line)
 			if match:
-				if match[0][0] == 'M' or match[0][0] == '?':
+				status = match[0][0]
+				fileName = match[0][2]
+				if status == 'M' or status == '?':
 					# if match[0][2] in self.ignorePathList:
-					if self.__isInIgnorePath(match[0][2]) == True:
+					if self.__isInIgnorePath(fileName) == True or self.__isIgnoreType(fileName):
 						continue
-					print("add", match[0][2])
-					self.fileList.append(match[0][2])
+					print("add", fileName)
+					self.fileList.append(fileName)
 				else:
-					if 'ignore-on-commit' in match[0][2]:
+					if 'ignore-on-commit' in fileName:
 						return
 
 
@@ -92,7 +109,8 @@ class DiffFileCopyer:
 		self.targetPath = self.serverPath + "\\patch\\" + todayStr
 		self.prosessFile(self.gameSvnPath)
 		self.writeResult()
-		self.pack(self.targetPath, self.serverPath + "\\patch\\", todayStr)
+		if self.isPack:
+			self.pack(self.targetPath, self.serverPath + "\\patch\\", todayStr)
 	
 
 	def __isInIgnorePath(self, path):
@@ -116,9 +134,11 @@ class DiffFileCopyer:
 		if jsonConfig == None:
 			return
 
-		serverPath = jsonConfig['serverPath']
-		gameSvnPath = jsonConfig['gameSvnPath']
-		ignorePathList = jsonConfig['ignorePathList']
+		serverPath = jsonConfig.get('serverPath')
+		gameSvnPath = jsonConfig.get('gameSvnPath')
+		ignorePathList = jsonConfig.get('ignorePathList')
+		ignoreFileType = jsonConfig.get('ignoreFileType')
+		isPack = jsonConfig.get('isPack')
 
 		if serverPath != None:
 			self.serverPath = serverPath
@@ -133,6 +153,11 @@ class DiffFileCopyer:
 					if segmentTree.get(segment) == None:
 						segmentTree[segment] = {}
 					segmentTree = segmentTree[segment]
+		if ignoreFileType != None:
+			for fileType in ignoreFileType:
+				self.ignoreFileType.add(fileType)
+		if isPack != None:
+			self.isPack = isPack
 
 
 if __name__ == '__main__':
